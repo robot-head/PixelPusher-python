@@ -2,6 +2,7 @@
 UDP PixelPusher discovery module.
 """
 
+import logging
 import socket
 import struct
 
@@ -21,6 +22,13 @@ Device Header format:
   uint32_t link_speed;  // in bits per second
 """
 
+class Error(Exception):
+  pass
+
+
+class WrongDiscoveryPacketLength(Error):
+  pass
+
 
 class Listener(object):
   
@@ -32,17 +40,21 @@ class Listener(object):
     self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1) 
   
   def _ParsePacket(self, packet):
-    header = struct.unpack(packet, self.HEADER_FORMAT)
+    header = struct.unpack(self.HEADER_FORMAT, packet)
     return header
   
   def GetConfigPacket(self):
-    print 'Binding to socket'
+    logging.info('Binding to socket')
     self.socket.bind((BROADCAST_HOST, BROADCAST_PORT))
-    print 'Waiting for data'
+    logging.info('Waiting for data')
     response = self.socket.recv(4096)
-    print 'Data received: %s' % (self._ParsePacket(response))
+    if len(response) < 16:
+      raise WrongDiscoveryPacketLength
+    logging.info('Response length: %d', len(response))
+    logging.info('Data received: %s', self._ParsePacket(response[:16]))
     
 
 if __name__ == '__main__':
+  logging.basicConfig(level=logging.DEBUG)
   listener = Listener()
   listener.GetConfigPacket()
