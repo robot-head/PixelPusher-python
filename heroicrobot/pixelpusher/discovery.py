@@ -58,9 +58,30 @@ class DeviceHeader(object):
             self.protocol_version, self.vendor_id, self.product_id,
             self.hw_revision, self.sw_revision, self.link_speed))
 
+
+class Device(object):
+  
+  def __init__(self, header):
+    self.header = header
+    
+  def __str__(self):
+    return str(self.__dict__)
+  
+class PixelPusher(Device):
+  
+  def __init__(
+      self, header, strips_attached, max_strips_per_packet, pixels_per_strip,
+      update_period):
+    super(PixelPusher, self).__init__(header)
+    self.strips_attached = strips_attached
+    self.max_strips_per_packet = max_strips_per_packet
+    self.pixels_per_strip = pixels_per_strip
+    self.update_period = update_period
+    
 class Listener(object):
   
   HEADER_FORMAT = 'BBBBBBBBBBBBHHHHI'
+  PP_FORMAT = 'BBHI'
   
   def __init__(self):
     self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) 
@@ -96,6 +117,20 @@ class Listener(object):
         product_id, hw_revision, sw_revision, link_speed)
     return device_header
   
+  def _ParsePixelPusherConfig(self, header, config):
+    """
+    typedef struct PixelPusher {
+      uint8_t  strips_attached;
+      uint8_t  max_strips_per_packet;
+      uint16_t pixels_per_strip;  // uint16_t used to make alignment work 
+      uint32_t update_period;  // in microseconds
+    } PixelPusher;
+    """
+    
+    c = struct.unpack(self.PP_FORMAT, config)
+    pixel_pusher = PixelPusher(header, c[0], c[1], c[2], c[3])
+    return pixel_pusher
+  
   def GetConfigPacket(self):
     logging.info('Binding to socket')
     self.socket.bind((BROADCAST_HOST, BROADCAST_PORT))
@@ -105,7 +140,17 @@ class Listener(object):
     if len(response) < expected_size:
       raise WrongDiscoveryPacketLength
     logging.info('Response length: %d', len(response))
-    logging.info('Data received: %s', self._ParsePacket(response[:expected_size]))
+    header = self._ParsePacket(response[:expected_size])
+    logging.info('Data received: %s', header)
+    if header.device_type == DeviceTypes.PIXELPUSHER:
+      expected_ppconfig_size = struct.calcsize(self.PP_FORMAT)
+      logging.info(
+          'Parsing %d to %d', expected_size,
+          expected_size + expected_ppconfig_size)
+      pixel_pusher = self._ParsePixelPusherConfig(
+          header,
+          response[expected_size:expected_size + expected_ppconfig_size])
+      logging.info('PixelPusher info: %s', pixel_pusher)
 
 
 if __name__ == '__main__':
