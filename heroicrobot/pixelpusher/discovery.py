@@ -61,18 +61,14 @@ class DeviceHeader(object):
 
 class Device(object):
   
-  def __init__(self, header):
-    self.header = header
-    
   def __str__(self):
     return str(self.__dict__)
   
 class PixelPusher(Device):
   
   def __init__(
-      self, header, strips_attached, max_strips_per_packet, pixels_per_strip,
+      self, strips_attached, max_strips_per_packet, pixels_per_strip,
       update_period):
-    super(PixelPusher, self).__init__(header)
     self.strips_attached = strips_attached
     self.max_strips_per_packet = max_strips_per_packet
     self.pixels_per_strip = pixels_per_strip
@@ -101,23 +97,22 @@ class Listener(object):
       uint16_t sw_revision;
       uint32_t link_speed;  // in bits per second
     """
-    header_tuple = struct.unpack(self.HEADER_FORMAT, packet)
-    mac_address = 'foo'
-    ip_address = '%d.%d.%d.%d' % (
-        header_tuple[6], header_tuple[7], header_tuple[8], header_tuple[9])
-    device_type = DeviceTypes.TypeFromId(header_tuple[10])
-    protocol_version = header_tuple[11]
-    vendor_id = header_tuple[12]
-    product_id = header_tuple[13]
-    hw_revision = header_tuple[14]
-    sw_revision = header_tuple[15]
-    link_speed = header_tuple[16]
+    h = struct.unpack(self.HEADER_FORMAT, packet)
+    mac_address = '%X:%X:%X:%X:%X:%X' % tuple(h[0:6])
+    ip_address = '%d.%d.%d.%d' % tuple(h[6:10])
+    device_type = DeviceTypes.TypeFromId(h[10])
+    protocol_version = h[11]
+    vendor_id = h[12]
+    product_id = h[13]
+    hw_revision = h[14]
+    sw_revision = h[15]
+    link_speed = h[16]
     device_header = DeviceHeader(
         mac_address, ip_address, device_type, protocol_version, vendor_id, 
         product_id, hw_revision, sw_revision, link_speed)
     return device_header
   
-  def _ParsePixelPusherConfig(self, header, config):
+  def _ParsePixelPusherConfig(self, config):
     """
     typedef struct PixelPusher {
       uint8_t  strips_attached;
@@ -128,7 +123,7 @@ class Listener(object):
     """
     
     c = struct.unpack(self.PP_FORMAT, config)
-    pixel_pusher = PixelPusher(header, c[0], c[1], c[2], c[3])
+    pixel_pusher = PixelPusher(*c)
     return pixel_pusher
   
   def GetConfigPacket(self):
@@ -148,7 +143,6 @@ class Listener(object):
           'Parsing %d to %d', expected_size,
           expected_size + expected_ppconfig_size)
       pixel_pusher = self._ParsePixelPusherConfig(
-          header,
           response[expected_size:expected_size + expected_ppconfig_size])
       logging.info('PixelPusher info: %s', pixel_pusher)
 
