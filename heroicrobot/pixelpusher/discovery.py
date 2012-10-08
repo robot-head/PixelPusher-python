@@ -52,7 +52,7 @@ class Listener(object):
       raise WrongDiscoveryPacketLength
     logging.info('Response length: %d', len(response))
     logging.info('Data received: %s', self._ParsePacket(response[:16]))
-    
+
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.DEBUG)
